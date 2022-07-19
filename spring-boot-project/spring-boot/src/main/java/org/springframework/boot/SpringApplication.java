@@ -261,12 +261,22 @@ public class SpringApplication {
 	public SpringApplication(ResourceLoader resourceLoader, Class<?>... primarySources) {
 		this.resourceLoader = resourceLoader;
 		Assert.notNull(primarySources, "PrimarySources must not be null");
+		// SpringBoot启动类
 		this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
+		// SpringBoot应用是 servlet
 		this.webApplicationType = WebApplicationType.deduceFromClasspath();
+		// 引导启动器 run()方法会创建一个引导上下文?? 引导启动器负责向上下文中加载资源
 		this.bootstrapRegistryInitializers = new ArrayList<>(
 				getSpringFactoriesInstances(BootstrapRegistryInitializer.class));
+		// 初始化器 run()方法会创建一个IOC容器 initializer会负责向其中加载资源
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
+		// 监听器 监控程序运行的状态 并在指定状态出现时发布事件 比如向终端打log
 		setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+
+		// bootstrapRegistryInitializers & initializers & listener 都是从META-INF/spring.factories文件里面加载进来的 getSpringFactoriesInstances这个方法跟进去能看到
+		// 可以参考spring-boot & spring-boot-autoconfigure 包下面的配置文件
+
+		// 根据堆栈信息 找到是从哪个类运行的main方法 也就是程序主类
 		this.mainApplicationClass = deduceMainApplicationClass();
 	}
 
@@ -447,6 +457,8 @@ public class SpringApplication {
 	}
 
 	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, ArgumentResolver argumentResolver) {
+		// forDefaultResourceLocation从spring.factories文件加载了所有properties属性
+		// load根据我们传入的class的fqcn 来对配置的各类进行实例化 从代码里面可以看到是forName获取class对象 然后class.getConstructor获取构造方法 然后反射调用构造方法实例化
 		return SpringFactoriesLoader.forDefaultResourceLocation(getClassLoader()).load(type, argumentResolver);
 	}
 
