@@ -304,26 +304,40 @@ public class SpringApplication {
 	public ConfigurableApplicationContext run(String... args) {
 		SpringApplicationHooks.hooks().preRun(this);
 		long startTime = System.nanoTime();
+		// 创建一个启动上下文
 		DefaultBootstrapContext bootstrapContext = createBootstrapContext();
+		// 运行时上下文
 		ConfigurableApplicationContext context = null;
+		// 声明机器没有鼠标显示器等设备啥的 不用特别关注
 		configureHeadlessProperty();
+		// 这块看到只拿了一个EventPublishingRunListener
 		SpringApplicationRunListeners listeners = getRunListeners(args);
+		// 这里EventPublishingRunListener广播了一个ApplicationStartingEvent事件
 		listeners.starting(bootstrapContext, this.mainApplicationClass);
 		try {
+			// 如果我们运行是传入一些参数 这里解析一下
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
+			// 构造environment对象 并和SpringApplication绑定在一起
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, bootstrapContext, applicationArguments);
+			// 如果有一些bean需要忽略掉 这里会设置它们的信息到environment中
 			configureIgnoreBeanInfo(environment);
+			// 把SpringBoot的logo打出来
 			Banner printedBanner = printBanner(environment);
+			// 创建运行时上下文 这个上下文也提供了IOC容器的能力 AnnotationConfigServletWebServerApplicationContext
 			context = createApplicationContext();
 			context.setApplicationStartup(this.applicationStartup);
 			prepareContext(bootstrapContext, context, environment, listeners, applicationArguments, printedBanner);
+
+			// refreshContext是Spring扫描bean注入到IOC容器的核心 一定要好好看看!!!
 			if (refreshContext(context)) {
+				// 一个后处理方法 默认是空的
 				afterRefresh(context, applicationArguments);
 				Duration timeTakenToStartup = Duration.ofNanos(System.nanoTime() - startTime);
 				if (this.logStartupInfo) {
 					new StartupInfoLogger(this.mainApplicationClass).logStarted(getApplicationLog(),
 							timeTakenToStartup);
 				}
+				// 通过回调的方式 告知监听器程序已启动
 				listeners.started(context, timeTakenToStartup);
 				callRunners(context, applicationArguments);
 			}
@@ -355,18 +369,26 @@ public class SpringApplication {
 	private ConfigurableEnvironment prepareEnvironment(SpringApplicationRunListeners listeners,
 			DefaultBootstrapContext bootstrapContext, ApplicationArguments applicationArguments) {
 		// Create and configure the environment
+		// 这里根据服务类型 new一个environment对象
 		ConfigurableEnvironment environment = getOrCreateEnvironment();
+		// 配置环境对象 环境对象里有很多PropertySource 还有spring.profile.active等等属性信息 相当于environment是一个大杂烩 保存了各种各样的property信息 比如jvm版本...等等属性
+		// 这些属性信息如果后面需要用到 直接从environment对象里面取就行
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
+		// 这个有点没太看懂是干啥的
 		ConfigurationPropertySources.attach(environment);
+		// 这里发布了ApplicationEnvironmentPreparedEvent事件 说明environment已经准备好
 		listeners.environmentPrepared(bootstrapContext, environment);
+		// 把defaulProperties这个source放到队列末尾 为啥这么做呢?
 		DefaultPropertiesPropertySource.moveToEnd(environment);
 		Assert.state(!environment.containsProperty("spring.main.environment-prefix"),
 				"Environment prefix cannot be set via properties.");
+		// 把environment 和 SpringApplication对象绑定起来
 		bindToSpringApplication(environment);
 		if (!this.isCustomEnvironment) {
 			EnvironmentConverter environmentConverter = new EnvironmentConverter(getClassLoader());
 			environment = environmentConverter.convertEnvironmentIfNecessary(environment, deduceEnvironmentClass());
 		}
+		// TODO 这里怎么又attach一遍??
 		ConfigurationPropertySources.attach(environment);
 		return environment;
 	}
@@ -382,18 +404,25 @@ public class SpringApplication {
 	private void prepareContext(DefaultBootstrapContext bootstrapContext, ConfigurableApplicationContext context,
 			ConfigurableEnvironment environment, SpringApplicationRunListeners listeners,
 			ApplicationArguments applicationArguments, Banner printedBanner) {
+		// 把环境变量绑定到上下文
 		context.setEnvironment(environment);
+		// 如果用户自定义了一些beanNameGenerator之类的 这里会将其设置到上下文
 		postProcessApplicationContext(context);
 		addAotGeneratedInitializerIfNecessary(this.initializers);
+		// 调用所有initializer的initialize方法 对上下文进行设置
 		applyInitializers(context);
+		// 发布一个事件 上下文准备好了
 		listeners.contextPrepared(context);
+		// 到这里启动上下文应该没什么作用了 关闭启动上下文并发布事件
 		bootstrapContext.close(context);
 		if (this.logStartupInfo) {
 			logStartupInfo(context.getParent() == null);
 			logStartupProfileInfo(context);
 		}
 		// Add boot specific singleton beans
+		// 这里默认拿到的是DefaultListableBeanFactory
 		ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
+		// 把args解析出来的参数对象也注册到ioc容器里面
 		beanFactory.registerSingleton("springApplicationArguments", applicationArguments);
 		if (printedBanner != null) {
 			beanFactory.registerSingleton("springBootBanner", printedBanner);
@@ -401,6 +430,7 @@ public class SpringApplication {
 		if (beanFactory instanceof AbstractAutowireCapableBeanFactory autowireCapableBeanFactory) {
 			autowireCapableBeanFactory.setAllowCircularReferences(this.allowCircularReferences);
 			if (beanFactory instanceof DefaultListableBeanFactory listableBeanFactory) {
+				// 这里是不允许bean名字重复
 				listableBeanFactory.setAllowBeanDefinitionOverriding(this.allowBeanDefinitionOverriding);
 			}
 		}
