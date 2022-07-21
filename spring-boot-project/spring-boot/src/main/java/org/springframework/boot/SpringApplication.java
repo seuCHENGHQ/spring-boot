@@ -372,9 +372,9 @@ public class SpringApplication {
 		// 这里根据服务类型 new一个environment对象
 		ConfigurableEnvironment environment = getOrCreateEnvironment();
 		// 配置环境对象 环境对象里有很多PropertySource 还有spring.profile.active等等属性信息 相当于environment是一个大杂烩 保存了各种各样的property信息 比如jvm版本...等等属性
-		// 这些属性信息如果后面需要用到 直接从environment对象里面取就行
+		// debug一下可以看到systemProperty(JVM的一些配置信息)、systemEnvironment(系统的环境变量 jvm_home之类的)
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
-		// 这个有点没太看懂是干啥的
+		// 这里是为了让configurationProperties把其他所有的properties聚合起来 放到environment.propertySources的第一位
 		ConfigurationPropertySources.attach(environment);
 		// 这里发布了ApplicationEnvironmentPreparedEvent事件 说明environment已经准备好
 		listeners.environmentPrepared(bootstrapContext, environment);
@@ -388,7 +388,7 @@ public class SpringApplication {
 			EnvironmentConverter environmentConverter = new EnvironmentConverter(getClassLoader());
 			environment = environmentConverter.convertEnvironmentIfNecessary(environment, deduceEnvironmentClass());
 		}
-		// TODO 这里怎么又attach一遍??
+		// 这里还是要把configurationProperties这个property放到队列的第一位 不太确定为什么需要放到第一位?
 		ConfigurationPropertySources.attach(environment);
 		return environment;
 	}
@@ -442,6 +442,7 @@ public class SpringApplication {
 			// Load the sources
 			Set<Object> sources = getAllSources();
 			Assert.notEmpty(sources, "Sources must not be empty");
+			// 将SpringBoot应用main方法所在的启动类 加载为BeanDefinition注册到ioc容器里
 			load(context, sources.toArray(new Object[0]));
 		}
 		listeners.contextLoaded(context);
