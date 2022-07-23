@@ -324,6 +324,13 @@ public class SpringApplication {
 			// 把SpringBoot的logo打出来
 			Banner printedBanner = printBanner(environment);
 			// 创建运行时上下文 这个上下文也提供了IOC容器的能力 AnnotationConfigServletWebServerApplicationContext
+			/**
+			 * 这里要注意一点 在createApplicationContext执行过程中 向上下文的ioc容器中 通过AnnotationUtils注册了
+			 * "org.springframework.context.annotation.internalConfigurationAnnotationProcessor" = ConfigurationClassPostProcessor.class;
+			 * ConfigurationClassPostProcessor是扫描basePackage 将class转换为beanDefinition的类 非常重要
+			 *
+			 * ConfigurationClassPostProcessor会在invokeBeanFactoryPostProcessors方法中被回调 实现class -> beanDefinition的转换
+			 */
 			context = createApplicationContext();
 			context.setApplicationStartup(this.applicationStartup);
 			prepareContext(bootstrapContext, context, environment, listeners, applicationArguments, printedBanner);
@@ -428,15 +435,18 @@ public class SpringApplication {
 			beanFactory.registerSingleton("springBootBanner", printedBanner);
 		}
 		if (beanFactory instanceof AbstractAutowireCapableBeanFactory autowireCapableBeanFactory) {
+			// beanFactory是否支持bean之间的循环依赖 如果支持的话 那么会有某个bean在注入时 是未完全初始化的状态 这样做也是为了能在循环依赖的状态下 仍能实现所有bean的实例化和注入
+			// 这里默认不支持循环依赖
 			autowireCapableBeanFactory.setAllowCircularReferences(this.allowCircularReferences);
 			if (beanFactory instanceof DefaultListableBeanFactory listableBeanFactory) {
-				// 这里是不允许bean名字重复
+				// DefaultListableBeanFactory默认是不支持beanName重复的
 				listableBeanFactory.setAllowBeanDefinitionOverriding(this.allowBeanDefinitionOverriding);
 			}
 		}
 		if (this.lazyInitialization) {
 			context.addBeanFactoryPostProcessor(new LazyInitializationBeanFactoryPostProcessor());
 		}
+		// PropertySourceOrderingBeanFactoryPostProcessor 将DefaultPropertiesPropertySource移动到property队列的末尾 不知道有啥用
 		context.addBeanFactoryPostProcessor(new PropertySourceOrderingBeanFactoryPostProcessor(context));
 		if (!AotDetector.useGeneratedArtifacts()) {
 			// Load the sources
